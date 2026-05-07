@@ -53,6 +53,8 @@ router.get("/stats/dashboard", requireAuth, async (req: any, res) => {
       .from(workoutsTable)
       .where(and(eq(workoutsTable.userId, userId), gte(workoutsTable.date, weekStart)));
 
+    const todayWorkouts = weekWorkouts.filter((w) => w.date === today);
+
     const todayNutrition = await db
       .select()
       .from(nutritionTable)
@@ -73,10 +75,14 @@ router.get("/stats/dashboard", requireAuth, async (req: any, res) => {
 
     const totalWorkoutsThisWeek = weekWorkouts.length;
     const totalCaloriesBurnedThisWeek = weekWorkouts.reduce((s, w) => s + w.caloriesBurned, 0);
+    const totalWorkoutsToday = todayWorkouts.length;
+    const totalCaloriesBurnedToday = todayWorkouts.reduce((s, w) => s + w.caloriesBurned, 0);
     const totalCaloriesConsumedToday = todayNutrition.reduce((s, n) => s + n.calories, 0);
+    const totalProteinToday = todayNutrition.reduce((s, n) => s + (n.protein ?? 0), 0);
+    const totalCarbsToday = todayNutrition.reduce((s, n) => s + (n.carbs ?? 0), 0);
+    const totalFatToday = todayNutrition.reduce((s, n) => s + (n.fat ?? 0), 0);
     const currentWeightKg = latestWeight?.weightKg ?? profile?.weightKg ?? 0;
 
-    // Simple streak: count consecutive days with workouts from today backwards
     const allWorkoutDates = (await db
       .select({ date: workoutsTable.date })
       .from(workoutsTable)
@@ -97,7 +103,6 @@ router.get("/stats/dashboard", requireAuth, async (req: any, res) => {
       }
     }
 
-    // Goal progress: simple metric based on workouts this week (target: 5)
     const goalProgress = Math.min(100, Math.round((totalWorkoutsThisWeek / 5) * 100));
 
     res.json({
@@ -107,6 +112,11 @@ router.get("/stats/dashboard", requireAuth, async (req: any, res) => {
       currentWeightKg,
       workoutStreak: streak,
       goalProgress,
+      totalWorkoutsToday,
+      totalCaloriesBurnedToday,
+      totalProteinToday,
+      totalCarbsToday,
+      totalFatToday,
     });
   } catch (err) {
     req.log.error({ err }, "Failed to get dashboard stats");

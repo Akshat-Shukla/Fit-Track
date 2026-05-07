@@ -3,13 +3,13 @@ import { Link, useLocation } from "wouter";
 import { 
   Activity, 
   BarChart2, 
-  Calendar, 
   ChevronRight,
   LogOut, 
   Menu,
   X,
   Zap,
-  Coffee
+  Coffee,
+  Settings
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     { name: "Workouts", href: "/workouts", icon: Zap },
     { name: "Nutrition", href: "/nutrition", icon: Coffee },
     { name: "Progress", href: "/progress", icon: BarChart2 },
+    { name: "Settings", href: "/settings", icon: Settings },
   ];
 
   const currentPath = location.replace(basePath, "") || "/";
@@ -96,7 +97,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 <div
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group cursor-pointer ${
                     isActive 
-                      ? "bg-primary text-primary-foreground font-medium shadow-[0_0_15px_rgba(255,87,34,0.3)]" 
+                      ? "bg-primary text-primary-foreground font-medium shadow-[0_0_15px_rgba(52,168,83,0.25)]" 
                       : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
                   }`}
                 >

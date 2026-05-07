@@ -264,7 +264,7 @@ export function NutritionPage() {
                 {entries.map(entry => (
                   <div key={entry.id} className="flex items-center justify-between p-4 rounded-xl bg-background/50 border border-border/30 hover:bg-white/5 transition-colors group">
                     <div className="flex items-center gap-4">
-                      <div className="h-10 w-10 rounded-full bg-orange-500/10 flex items-center justify-center text-orange-500">
+                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
                         <Coffee className="h-5 w-5" />
                       </div>
                       <div>

@@ -17,15 +17,15 @@ const requireAuth = (req: any, res: any, next: any) => {
 router.get("/nutrition", requireAuth, async (req: any, res) => {
   try {
     const query = ListNutritionQueryParams.parse(req.query);
-    let q = db
+    const conditions = [eq(nutritionTable.userId, req.userId)];
+    if (query.date) {
+      conditions.push(eq(nutritionTable.date, query.date));
+    }
+    const entries = await db
       .select()
       .from(nutritionTable)
-      .where(eq(nutritionTable.userId, req.userId))
-      .$dynamic();
-    if (query.date) {
-      q = q.where(and(eq(nutritionTable.userId, req.userId), eq(nutritionTable.date, query.date)));
-    }
-    const entries = await q.orderBy(desc(nutritionTable.createdAt));
+      .where(and(...conditions))
+      .orderBy(desc(nutritionTable.createdAt));
     res.json(entries);
   } catch (err) {
     req.log.error({ err }, "Failed to list nutrition");

@@ -422,7 +422,7 @@ components:
 
     DashboardStats:
       type: object
-      required: [totalWorkoutsThisWeek, totalCaloriesBurnedThisWeek, totalCaloriesConsumedToday, currentWeightKg, workoutStreak, goalProgress]
+      required: [totalWorkoutsThisWeek, totalCaloriesBurnedThisWeek, totalCaloriesConsumedToday, currentWeightKg, workoutStreak, goalProgress, totalWorkoutsToday, totalCaloriesBurnedToday, totalProteinToday, totalCarbsToday, totalFatToday]
       properties:
         totalWorkoutsThisWeek:
           type: integer
@@ -435,6 +435,16 @@ components:
         workoutStreak:
           type: integer
         goalProgress:
+          type: number
+        totalWorkoutsToday:
+          type: integer
+        totalCaloriesBurnedToday:
+          type: integer
+        totalProteinToday:
+          type: number
+        totalCarbsToday:
+          type: number
+        totalFatToday:
           type: number
 
     DailyStats:

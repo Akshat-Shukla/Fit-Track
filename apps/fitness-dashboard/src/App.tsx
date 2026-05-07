@@ -16,6 +16,7 @@ import { DashboardPage } from "@/pages/dashboard";
 import { WorkoutsPage } from "@/pages/workouts";
 import { NutritionPage } from "@/pages/nutrition";
 import { ProgressPage } from "@/pages/progress";
+import { SettingsPage } from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 
 // REQUIRED CLERK CONFIGURATION
@@ -45,7 +46,7 @@ const clerkAppearance = {
     logoImageUrl: `${window.location.origin}${basePath}/logo.svg`,
   },
   variables: {
-    colorPrimary: "hsl(15 95% 55%)",
+    colorPrimary: "hsl(142 50% 42%)",
     colorForeground: "hsl(210 40% 98%)",
     colorMutedForeground: "hsl(217.9 10.6% 64.9%)",
     colorDanger: "hsl(0 62.8% 30.6%)",
@@ -201,6 +202,9 @@ function ClerkProviderWithRoutes() {
             </Route>
             <Route path="/progress">
               <ProtectedRoute component={ProgressPage} />
+            </Route>
+            <Route path="/settings">
+              <ProtectedRoute component={SettingsPage} />
             </Route>
 
             <Route component={NotFound} />

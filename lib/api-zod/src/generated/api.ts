@@ -183,7 +183,12 @@ export const GetDashboardStatsResponse = zod.object({
   "totalCaloriesConsumedToday": zod.number(),
   "currentWeightKg": zod.number(),
   "workoutStreak": zod.number(),
-  "goalProgress": zod.number()
+  "goalProgress": zod.number(),
+  "totalWorkoutsToday": zod.number(),
+  "totalCaloriesBurnedToday": zod.number(),
+  "totalProteinToday": zod.number(),
+  "totalCarbsToday": zod.number(),
+  "totalFatToday": zod.number()
 })
 
 

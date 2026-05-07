@@ -147,6 +147,11 @@ export interface DashboardStats {
   currentWeightKg: number;
   workoutStreak: number;
   goalProgress: number;
+  totalWorkoutsToday: number;
+  totalCaloriesBurnedToday: number;
+  totalProteinToday: number;
+  totalCarbsToday: number;
+  totalFatToday: number;
 }
 
 export interface DailyStats {
