@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useListNutrition, useLogNutrition, useDeleteNutrition, getListNutritionQueryKey, getGetDashboardStatsQueryKey } from "@fitness/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Coffee, Plus, Trash2, Calendar, Utensils } from "lucide-react";
-import { format } from "date-fns";
+import { Utensils, Plus, Trash2, ChevronLeft, ChevronRight as ChevronRightIcon } from "lucide-react";
+import { format, addDays, subDays, isToday } from "date-fns";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { motion } from "framer-motion";
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,9 +16,10 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { AppLayout } from "@/components/layout";
+import { PageTransition, StaggerList, StaggerItem } from "@/components/page-transition";
 
 const nutritionSchema = z.object({
-  foodName: z.string().min(2, "Name too short").max(100),
+  foodName: z.string().min(1, "Name required").max(100),
   calories: z.coerce.number().min(0).max(5000),
   protein: z.coerce.number().min(0).max(500).optional(),
   carbs: z.coerce.number().min(0).max(500).optional(),
@@ -27,11 +29,36 @@ const nutritionSchema = z.object({
 
 type NutritionValues = z.infer<typeof nutritionSchema>;
 
+const CALORIE_TARGET = 2000;
+const PROTEIN_TARGET = 150;
+const CARBS_TARGET = 250;
+const FAT_TARGET = 65;
+
+function MacroChip({ label, value, target, color }: { label: string; value: number; target: number; color: string }) {
+  const pct = Math.min(100, (value / target) * 100);
+  return (
+    <div className="flex-1 bg-card/30 border border-border/30 rounded-xl p-3">
+      <div className="flex justify-between items-baseline mb-2">
+        <span className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">{label}</span>
+        <span className={`text-xs font-bold ${color}`}>{Math.round(value)}g</span>
+      </div>
+      <div className="h-1.5 rounded-full bg-muted/30 overflow-hidden">
+        <motion.div
+          className={`h-full rounded-full ${color.replace("text-", "bg-")}`}
+          initial={{ width: 0 }}
+          animate={{ width: `${pct}%` }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+        />
+      </div>
+      <div className="text-[10px] text-muted-foreground mt-1.5">{target}g target</div>
+    </div>
+  );
+}
+
 export function NutritionPage() {
-  // Use today's date for filtering list by default
   const today = format(new Date(), "yyyy-MM-dd");
   const [selectedDate, setSelectedDate] = useState(today);
-  
+
   const { data: entries, isLoading } = useListNutrition({ date: selectedDate });
   const logNutrition = useLogNutrition();
   const deleteNutrition = useDeleteNutrition();
@@ -41,33 +68,19 @@ export function NutritionPage() {
 
   const form = useForm<NutritionValues>({
     resolver: zodResolver(nutritionSchema),
-    defaultValues: {
-      foodName: "",
-      calories: 0,
-      protein: 0,
-      carbs: 0,
-      fat: 0,
-      date: today,
-    },
+    defaultValues: { foodName: "", calories: 0, protein: 0, carbs: 0, fat: 0, date: today },
   });
 
   const onSubmit = (data: NutritionValues) => {
     logNutrition.mutate(
-      { data },
+      { data: { ...data, date: selectedDate } },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getListNutritionQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetDashboardStatsQueryKey() });
-          toast({ title: "Meal logged successfully" });
+          toast({ title: "Meal logged!" });
           setIsDialogOpen(false);
-          form.reset({
-            foodName: "",
-            calories: 0,
-            protein: 0,
-            carbs: 0,
-            fat: 0,
-            date: today,
-          });
+          form.reset({ foodName: "", calories: 0, protein: 0, carbs: 0, fat: 0, date: today });
         },
         onError: () => {
           toast({ variant: "destructive", title: "Failed to log meal" });
@@ -77,7 +90,7 @@ export function NutritionPage() {
   };
 
   const handleDelete = (id: number) => {
-    if (confirm("Are you sure you want to delete this entry?")) {
+    if (confirm("Delete this entry?")) {
       deleteNutrition.mutate(
         { id },
         {
@@ -91,129 +104,63 @@ export function NutritionPage() {
     }
   };
 
-  const totals = entries?.reduce((acc, entry) => ({
-    calories: acc.calories + entry.calories,
-    protein: acc.protein + (entry.protein || 0),
-    carbs: acc.carbs + (entry.carbs || 0),
-    fat: acc.fat + (entry.fat || 0),
-  }), { calories: 0, protein: 0, carbs: 0, fat: 0 }) || { calories: 0, protein: 0, carbs: 0, fat: 0 };
+  const totals = entries?.reduce(
+    (acc, e) => ({ calories: acc.calories + e.calories, protein: acc.protein + (e.protein ?? 0), carbs: acc.carbs + (e.carbs ?? 0), fat: acc.fat + (e.fat ?? 0) }),
+    { calories: 0, protein: 0, carbs: 0, fat: 0 }
+  ) ?? { calories: 0, protein: 0, carbs: 0, fat: 0 };
+
+  const caloriePct = Math.min(100, (totals.calories / CALORIE_TARGET) * 100);
+  const parsedDate = new Date(selectedDate + "T12:00:00");
 
   return (
     <AppLayout>
-      <div className="space-y-8">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Nutrition</h1>
-            <p className="text-muted-foreground mt-1">Track your fuel and macros.</p>
-          </div>
-          
-          <div className="flex items-center gap-3">
-            <Input 
-              type="date" 
-              value={selectedDate} 
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="bg-card/50 border-border/40 w-auto"
-            />
-            
+      <PageTransition>
+        <div className="space-y-6">
+          {/* Header + Date Nav */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">Nutrition</h1>
+              <p className="text-sm text-muted-foreground mt-0.5">Track your fuel and macros.</p>
+            </div>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
+                <Button className="bg-primary text-primary-foreground hover:bg-primary/90 shrink-0">
                   <Plus className="mr-2 h-4 w-4" /> Add Food
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px] bg-card border-border/40">
+              <DialogContent className="sm:max-w-[420px] bg-card border-border/40">
                 <DialogHeader>
-                  <DialogTitle>Log Food</DialogTitle>
-                  <DialogDescription>Add a new entry to your nutrition log.</DialogDescription>
+                  <DialogTitle className="text-lg font-bold">Log Food</DialogTitle>
+                  <DialogDescription className="text-sm text-muted-foreground">Add a new entry to your nutrition log.</DialogDescription>
                 </DialogHeader>
-                
                 <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
-                    <FormField
-                      control={form.control}
-                      name="foodName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Food Name</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g. Oatmeal with berries" className="bg-background/50 border-border/40" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name="calories"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Calories (kcal)</FormLabel>
-                          <FormControl>
-                            <Input type="number" className="bg-background/50 border-border/40" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <div className="grid grid-cols-3 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="protein"
-                        render={({ field }) => (
+                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
+                    <FormField control={form.control} name="foodName" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Food Name</FormLabel>
+                        <FormControl><Input placeholder="e.g. Chicken breast, rice" className="bg-background/60 border-border/40" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="calories" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Calories (kcal)</FormLabel>
+                        <FormControl><Input type="number" className="bg-background/60 border-border/40" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <div className="grid grid-cols-3 gap-3">
+                      {(["protein", "carbs", "fat"] as const).map(macro => (
+                        <FormField key={macro} control={form.control} name={macro} render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-xs">Protein (g)</FormLabel>
-                            <FormControl>
-                              <Input type="number" className="bg-background/50 border-border/40" {...field} />
-                            </FormControl>
+                            <FormLabel className="capitalize text-xs">{macro} (g)</FormLabel>
+                            <FormControl><Input type="number" className="bg-background/60 border-border/40" {...field} /></FormControl>
                             <FormMessage />
                           </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="carbs"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs">Carbs (g)</FormLabel>
-                            <FormControl>
-                              <Input type="number" className="bg-background/50 border-border/40" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="fat"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs">Fat (g)</FormLabel>
-                            <FormControl>
-                              <Input type="number" className="bg-background/50 border-border/40" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                        )} />
+                      ))}
                     </div>
-                    
-                    <FormField
-                      control={form.control}
-                      name="date"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Date</FormLabel>
-                          <FormControl>
-                            <Input type="date" className="bg-background/50 border-border/40" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <Button type="submit" className="w-full bg-primary text-primary-foreground hover:bg-primary/90 mt-4" disabled={logNutrition.isPending}>
+                    <Button type="submit" className="w-full bg-primary text-primary-foreground hover:bg-primary/90" disabled={logNutrition.isPending}>
                       {logNutrition.isPending ? "Saving..." : "Save Entry"}
                     </Button>
                   </form>
@@ -221,82 +168,126 @@ export function NutritionPage() {
               </DialogContent>
             </Dialog>
           </div>
-        </div>
 
-        {/* Macro Summary */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card className="bg-card/30 border-border/40 backdrop-blur-sm text-center py-4">
-            <div className="text-3xl font-bold">{totals.calories}</div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wider mt-1">Calories</p>
-          </Card>
-          <Card className="bg-card/30 border-border/40 backdrop-blur-sm text-center py-4">
-            <div className="text-3xl font-bold text-blue-400">{totals.protein}g</div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wider mt-1">Protein</p>
-          </Card>
-          <Card className="bg-card/30 border-border/40 backdrop-blur-sm text-center py-4">
-            <div className="text-3xl font-bold text-green-400">{totals.carbs}g</div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wider mt-1">Carbs</p>
-          </Card>
-          <Card className="bg-card/30 border-border/40 backdrop-blur-sm text-center py-4">
-            <div className="text-3xl font-bold text-yellow-400">{totals.fat}g</div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wider mt-1">Fat</p>
-          </Card>
-        </div>
+          {/* Date navigation */}
+          <div className="flex items-center gap-2 bg-card/20 border border-border/30 rounded-xl px-4 py-2.5 w-fit">
+            <button
+              className="h-7 w-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors"
+              onClick={() => setSelectedDate(format(subDays(parsedDate, 1), "yyyy-MM-dd"))}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <span className="text-sm font-medium px-1 min-w-[140px] text-center">
+              {isToday(parsedDate) ? "Today" : format(parsedDate, "EEEE, MMM d")}
+            </span>
+            <button
+              className="h-7 w-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors disabled:opacity-30"
+              onClick={() => setSelectedDate(format(addDays(parsedDate, 1), "yyyy-MM-dd"))}
+              disabled={isToday(parsedDate)}
+            >
+              <ChevronRightIcon className="h-4 w-4" />
+            </button>
+          </div>
 
-        {/* Entries List */}
-        <Card className="bg-card/30 border-border/40 backdrop-blur-sm">
-          <CardHeader>
-            <CardTitle>Daily Log</CardTitle>
-            <CardDescription>{format(new Date(selectedDate), "EEEE, MMMM d, yyyy")}</CardDescription>
-          </CardHeader>
-          <CardContent>
+          {/* Calorie ring + macros */}
+          <div className="bg-card/20 border border-border/30 rounded-2xl p-5">
+            <div className="flex items-center gap-6 mb-5">
+              {/* Calorie ring */}
+              <div className="relative w-24 h-24 shrink-0">
+                <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="40" fill="transparent" stroke="currentColor" strokeWidth="8" className="text-muted/20" />
+                  <motion.circle
+                    cx="50" cy="50" r="40"
+                    fill="transparent"
+                    stroke="currentColor"
+                    strokeWidth="8"
+                    strokeLinecap="round"
+                    strokeDasharray="251.2"
+                    initial={{ strokeDashoffset: 251.2 }}
+                    animate={{ strokeDashoffset: 251.2 - (caloriePct / 100) * 251.2 }}
+                    transition={{ duration: 0.8, ease: "easeOut" }}
+                    className="text-primary"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-xl font-bold leading-none">{totals.calories}</span>
+                  <span className="text-[9px] text-muted-foreground uppercase tracking-wider">kcal</span>
+                </div>
+              </div>
+              <div className="flex-1 space-y-1.5 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Daily Target</span>
+                  <span className="font-semibold">{CALORIE_TARGET} kcal</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Consumed</span>
+                  <span className="font-semibold text-primary">{totals.calories} kcal</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Remaining</span>
+                  <span className={`font-semibold ${totals.calories > CALORIE_TARGET ? "text-rose-400" : "text-muted-foreground"}`}>
+                    {Math.max(0, CALORIE_TARGET - totals.calories)} kcal
+                  </span>
+                </div>
+              </div>
+            </div>
+            {/* Macro bars */}
+            <div className="flex gap-2.5">
+              <MacroChip label="Protein" value={totals.protein} target={PROTEIN_TARGET} color="text-blue-400" />
+              <MacroChip label="Carbs" value={totals.carbs} target={CARBS_TARGET} color="text-amber-400" />
+              <MacroChip label="Fat" value={totals.fat} target={FAT_TARGET} color="text-rose-400" />
+            </div>
+          </div>
+
+          {/* Food log */}
+          <div>
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Food Log</h2>
             {isLoading ? (
-              <div className="space-y-4">
-                {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full" />)}
+              <div className="space-y-2.5">
+                {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
               </div>
             ) : !entries || entries.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground border border-dashed border-border/40 rounded-lg">
-                <Utensils className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p>No food logged for this day.</p>
+              <div className="text-center py-16 text-muted-foreground border border-dashed border-border/30 rounded-2xl">
+                <Utensils className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                <p className="text-sm">No food logged {isToday(parsedDate) ? "today" : "for this day"}.</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <StaggerList className="space-y-2">
                 {entries.map(entry => (
-                  <div key={entry.id} className="flex items-center justify-between p-4 rounded-xl bg-background/50 border border-border/30 hover:bg-white/5 transition-colors group">
-                    <div className="flex items-center gap-4">
-                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                        <Coffee className="h-5 w-5" />
+                  <StaggerItem key={entry.id}>
+                    <motion.div
+                      whileHover={{ x: 2 }}
+                      className="group flex items-center gap-4 px-4 py-3.5 rounded-xl bg-card/30 border border-border/25 hover:border-primary/20 hover:bg-card/50 transition-colors"
+                    >
+                      <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                        <Utensils className="h-4 w-4" />
                       </div>
-                      <div>
-                        <h4 className="font-semibold text-base">{entry.foodName}</h4>
-                        <div className="flex items-center text-xs text-muted-foreground gap-3 mt-1">
-                          {entry.protein !== null && <span><span className="text-blue-400 font-medium">{entry.protein}g</span> P</span>}
-                          {entry.carbs !== null && <span><span className="text-green-400 font-medium">{entry.carbs}g</span> C</span>}
-                          {entry.fat !== null && <span><span className="text-yellow-400 font-medium">{entry.fat}g</span> F</span>}
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-sm truncate">{entry.foodName}</h4>
+                        <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-0.5">
+                          {entry.protein != null && <span><span className="text-blue-400 font-semibold">{entry.protein}g</span> protein</span>}
+                          {entry.carbs != null && <span><span className="text-amber-400 font-semibold">{entry.carbs}g</span> carbs</span>}
+                          {entry.fat != null && <span><span className="text-rose-400 font-semibold">{entry.fat}g</span> fat</span>}
                         </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <div className="font-bold text-lg">{entry.calories}</div>
-                        <div className="text-[10px] text-muted-foreground uppercase tracking-widest">kcal</div>
+                      <div className="text-right shrink-0">
+                        <div className="font-bold text-sm">{entry.calories}</div>
+                        <div className="text-[10px] text-muted-foreground uppercase tracking-wider">kcal</div>
                       </div>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                      <button
+                        className="h-7 w-7 flex items-center justify-center rounded-lg text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-all"
                         onClick={() => handleDelete(entry.id)}
                       >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </motion.div>
+                  </StaggerItem>
                 ))}
-              </div>
+              </StaggerList>
             )}
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </div>
+      </PageTransition>
     </AppLayout>
   );
 }

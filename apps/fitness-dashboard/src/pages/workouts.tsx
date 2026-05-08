@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { useListWorkouts, useLogWorkout, useDeleteWorkout, getListWorkoutsQueryKey, getGetDashboardStatsQueryKey } from "@fitness/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Activity, Calendar, Clock, Plus, Trash2, Flame, Droplet, Dumbbell, Zap } from "lucide-react";
+import { Activity, Calendar, Clock, Plus, Trash2, Flame, Droplet, Dumbbell, Zap, Timer, TrendingUp } from "lucide-react";
 import { format } from "date-fns";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { motion, AnimatePresence } from "framer-motion";
 
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -17,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { AppLayout } from "@/components/layout";
+import { PageTransition, StaggerList, StaggerItem } from "@/components/page-transition";
 
 const workoutSchema = z.object({
   type: z.enum(["running", "cycling", "swimming", "weightlifting", "yoga", "hiit", "walking", "other"]),
@@ -29,18 +31,22 @@ const workoutSchema = z.object({
 type WorkoutValues = z.infer<typeof workoutSchema>;
 
 const WORKOUT_TYPES = [
-  { value: "running", label: "Running", icon: Flame },
-  { value: "cycling", label: "Cycling", icon: Zap },
-  { value: "swimming", label: "Swimming", icon: Droplet },
-  { value: "weightlifting", label: "Weightlifting", icon: Dumbbell },
-  { value: "yoga", label: "Yoga", icon: Activity },
-  { value: "hiit", label: "HIIT", icon: Flame },
-  { value: "walking", label: "Walking", icon: Activity },
-  { value: "other", label: "Other", icon: Activity },
+  { value: "running", label: "Running", icon: Flame, color: "text-rose-400", bg: "bg-rose-500/10" },
+  { value: "cycling", label: "Cycling", icon: Zap, color: "text-amber-400", bg: "bg-amber-500/10" },
+  { value: "swimming", label: "Swimming", icon: Droplet, color: "text-blue-400", bg: "bg-blue-500/10" },
+  { value: "weightlifting", label: "Weightlifting", icon: Dumbbell, color: "text-primary", bg: "bg-primary/10" },
+  { value: "yoga", label: "Yoga", icon: Activity, color: "text-purple-400", bg: "bg-purple-500/10" },
+  { value: "hiit", label: "HIIT", icon: Flame, color: "text-orange-400", bg: "bg-orange-500/10" },
+  { value: "walking", label: "Walking", icon: Activity, color: "text-teal-400", bg: "bg-teal-500/10" },
+  { value: "other", label: "Other", icon: TrendingUp, color: "text-muted-foreground", bg: "bg-muted/20" },
 ];
 
+function getWorkoutMeta(type: string) {
+  return WORKOUT_TYPES.find(w => w.value === type) ?? WORKOUT_TYPES[7];
+}
+
 export function WorkoutsPage() {
-  const { data: workouts, isLoading } = useListWorkouts();
+  const { data: workouts, isLoading } = useListWorkouts({ limit: 50 });
   const logWorkout = useLogWorkout();
   const deleteWorkout = useDeleteWorkout();
   const queryClient = useQueryClient();
@@ -65,15 +71,9 @@ export function WorkoutsPage() {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getListWorkoutsQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetDashboardStatsQueryKey() });
-          toast({ title: "Workout logged successfully" });
+          toast({ title: "Workout logged! 💪" });
           setIsDialogOpen(false);
-          form.reset({
-            type: "running",
-            durationMinutes: 30,
-            caloriesBurned: 300,
-            date: format(new Date(), "yyyy-MM-dd"),
-            notes: "",
-          });
+          form.reset({ type: "running", durationMinutes: 30, caloriesBurned: 300, date: format(new Date(), "yyyy-MM-dd"), notes: "" });
         },
         onError: () => {
           toast({ variant: "destructive", title: "Failed to log workout" });
@@ -83,7 +83,7 @@ export function WorkoutsPage() {
   };
 
   const handleDelete = (id: number) => {
-    if (confirm("Are you sure you want to delete this workout?")) {
+    if (confirm("Delete this workout?")) {
       deleteWorkout.mutate(
         { id },
         {
@@ -97,52 +97,46 @@ export function WorkoutsPage() {
     }
   };
 
-  const getIconForType = (type: string) => {
-    const wt = WORKOUT_TYPES.find(w => w.value === type);
-    const Icon = wt?.icon || Activity;
-    return <Icon className="h-5 w-5" />;
-  };
+  const totalCalories = workouts?.reduce((s, w) => s + w.caloriesBurned, 0) ?? 0;
+  const totalMinutes = workouts?.reduce((s, w) => s + w.durationMinutes, 0) ?? 0;
 
   return (
     <AppLayout>
-      <div className="space-y-8">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Workouts</h1>
-            <p className="text-muted-foreground mt-1">Track and manage your training sessions.</p>
-          </div>
-          
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-primary text-primary-foreground hover:bg-primary/90 w-full sm:w-auto">
-                <Plus className="mr-2 h-4 w-4" /> Log Session
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px] bg-card border-border/40">
-              <DialogHeader>
-                <DialogTitle>Log a Workout</DialogTitle>
-                <DialogDescription>Add a new session to your training history.</DialogDescription>
-              </DialogHeader>
-              
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
-                  <FormField
-                    control={form.control}
-                    name="type"
-                    render={({ field }) => (
+      <PageTransition>
+        <div className="space-y-7">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">Workouts</h1>
+              <p className="text-sm text-muted-foreground mt-0.5">Track and manage your training sessions.</p>
+            </div>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-primary text-primary-foreground hover:bg-primary/90 shrink-0">
+                  <Plus className="mr-2 h-4 w-4" /> Log Session
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[420px] bg-card border-border/40">
+                <DialogHeader>
+                  <DialogTitle className="text-lg font-bold">Log a Workout</DialogTitle>
+                  <DialogDescription className="text-sm text-muted-foreground">Add a new session to your training history.</DialogDescription>
+                </DialogHeader>
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
+                    <FormField control={form.control} name="type" render={({ field }) => (
                       <FormItem>
                         <FormLabel>Activity Type</FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
-                            <SelectTrigger className="bg-background/50 border-border/40">
+                            <SelectTrigger className="bg-background/60 border-border/40">
                               <SelectValue placeholder="Select activity" />
                             </SelectTrigger>
                           </FormControl>
-                          <SelectContent>
+                          <SelectContent className="bg-card border-border/40">
                             {WORKOUT_TYPES.map(wt => (
                               <SelectItem key={wt.value} value={wt.value}>
                                 <div className="flex items-center gap-2">
-                                  <wt.icon className="h-4 w-4 text-muted-foreground" />
+                                  <wt.icon className={`h-4 w-4 ${wt.color}`} />
                                   {wt.label}
                                 </div>
                               </SelectItem>
@@ -151,129 +145,119 @@ export function WorkoutsPage() {
                         </Select>
                         <FormMessage />
                       </FormItem>
-                    )}
-                  />
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="durationMinutes"
-                      render={({ field }) => (
+                    )} />
+                    <div className="grid grid-cols-2 gap-3">
+                      <FormField control={form.control} name="durationMinutes" render={({ field }) => (
                         <FormItem>
                           <FormLabel>Duration (min)</FormLabel>
-                          <FormControl>
-                            <Input type="number" className="bg-background/50 border-border/40" {...field} />
-                          </FormControl>
+                          <FormControl><Input type="number" className="bg-background/60 border-border/40" {...field} /></FormControl>
                           <FormMessage />
                         </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name="caloriesBurned"
-                      render={({ field }) => (
+                      )} />
+                      <FormField control={form.control} name="caloriesBurned" render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Calories (kcal)</FormLabel>
-                          <FormControl>
-                            <Input type="number" className="bg-background/50 border-border/40" {...field} />
-                          </FormControl>
+                          <FormLabel>Calories</FormLabel>
+                          <FormControl><Input type="number" className="bg-background/60 border-border/40" {...field} /></FormControl>
                           <FormMessage />
                         </FormItem>
-                      )}
-                    />
-                  </div>
-                  
-                  <FormField
-                    control={form.control}
-                    name="date"
-                    render={({ field }) => (
+                      )} />
+                    </div>
+                    <FormField control={form.control} name="date" render={({ field }) => (
                       <FormItem>
                         <FormLabel>Date</FormLabel>
-                        <FormControl>
-                          <Input type="date" className="bg-background/50 border-border/40" {...field} />
-                        </FormControl>
+                        <FormControl><Input type="date" className="bg-background/60 border-border/40" {...field} /></FormControl>
                         <FormMessage />
                       </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={form.control}
-                    name="notes"
-                    render={({ field }) => (
+                    )} />
+                    <FormField control={form.control} name="notes" render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Notes (Optional)</FormLabel>
-                        <FormControl>
-                          <Textarea className="bg-background/50 border-border/40 resize-none" {...field} />
-                        </FormControl>
+                        <FormLabel>Notes <span className="text-muted-foreground">(optional)</span></FormLabel>
+                        <FormControl><Textarea className="bg-background/60 border-border/40 resize-none h-20" placeholder="How did it feel?" {...field} /></FormControl>
                         <FormMessage />
                       </FormItem>
-                    )}
-                  />
-                  
-                  <Button type="submit" className="w-full bg-primary text-primary-foreground hover:bg-primary/90 mt-4" disabled={logWorkout.isPending}>
-                    {logWorkout.isPending ? "Saving..." : "Save Workout"}
-                  </Button>
-                </form>
-              </Form>
-            </DialogContent>
-          </Dialog>
-        </div>
+                    )} />
+                    <Button type="submit" className="w-full bg-primary text-primary-foreground hover:bg-primary/90" disabled={logWorkout.isPending}>
+                      {logWorkout.isPending ? "Saving..." : "Save Workout"}
+                    </Button>
+                  </form>
+                </Form>
+              </DialogContent>
+            </Dialog>
+          </div>
 
-        {isLoading ? (
-          <div className="space-y-4">
-            {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}
-          </div>
-        ) : !workouts || workouts.length === 0 ? (
-          <div className="text-center py-16 text-muted-foreground border border-dashed border-border/40 rounded-xl bg-card/20">
-            <Activity className="h-12 w-12 mx-auto mb-4 opacity-30" />
-            <h3 className="text-lg font-medium mb-1 text-foreground">No workouts logged yet</h3>
-            <p className="max-w-md mx-auto">Your training history will appear here once you start logging your sessions.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {workouts.map(workout => (
-              <Card key={workout.id} className="bg-card/30 border-border/40 backdrop-blur-sm group overflow-hidden relative hover:border-primary/30 transition-colors">
-                <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
-                <CardContent className="p-5">
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-start gap-4">
-                      <div className="h-12 w-12 rounded-xl bg-background border border-border/50 flex items-center justify-center text-primary shadow-inner">
-                        {getIconForType(workout.type)}
+          {/* Quick stats */}
+          {!isLoading && workouts && workouts.length > 0 && (
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: "Total Sessions", value: workouts.length, icon: Activity, color: "text-primary" },
+                { label: "Total Minutes", value: totalMinutes, icon: Timer, color: "text-blue-400" },
+                { label: "Calories Burned", value: totalCalories.toLocaleString(), icon: Flame, color: "text-rose-400" },
+              ].map((stat) => (
+                <div key={stat.label} className="bg-card/30 border border-border/30 rounded-xl px-4 py-3 flex items-center gap-3">
+                  <stat.icon className={`h-5 w-5 ${stat.color} shrink-0`} />
+                  <div>
+                    <div className="font-bold text-lg leading-none">{stat.value}</div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5">{stat.label}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Workout list */}
+          {isLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map(i => <Skeleton key={i} className="h-[88px] w-full rounded-xl" />)}
+            </div>
+          ) : !workouts || workouts.length === 0 ? (
+            <div className="text-center py-20 text-muted-foreground border border-dashed border-border/30 rounded-2xl bg-card/10">
+              <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                <Dumbbell className="h-7 w-7 text-primary" />
+              </div>
+              <h3 className="text-base font-semibold text-foreground mb-1">No workouts yet</h3>
+              <p className="text-sm max-w-xs mx-auto">Log your first session to start tracking progress.</p>
+            </div>
+          ) : (
+            <StaggerList className="space-y-2.5">
+              {workouts.map(workout => {
+                const meta = getWorkoutMeta(workout.type);
+                return (
+                  <StaggerItem key={workout.id}>
+                    <motion.div
+                      whileHover={{ x: 2 }}
+                      className="group relative flex items-center gap-4 px-5 py-4 rounded-xl bg-card/30 border border-border/30 hover:border-primary/20 hover:bg-card/50 transition-colors cursor-default"
+                    >
+                      <div className={`h-11 w-11 rounded-xl ${meta.bg} flex items-center justify-center shrink-0`}>
+                        <meta.icon className={`h-5 w-5 ${meta.color}`} />
                       </div>
-                      <div>
-                        <h3 className="font-bold text-lg capitalize">{workout.type}</h3>
-                        <div className="flex items-center text-sm text-muted-foreground gap-4 mt-1">
-                          <span className="flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" /> {format(new Date(workout.date), "MMM d, yyyy")}</span>
-                          <span className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> {workout.durationMinutes} min</span>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold capitalize text-sm">{workout.type.replace("_", " ")}</h3>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
+                          <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{format(new Date(workout.date), "MMM d, yyyy")}</span>
+                          <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{workout.durationMinutes} min</span>
                         </div>
                         {workout.notes && (
-                          <p className="text-sm mt-3 text-muted-foreground/80 italic">"{workout.notes}"</p>
+                          <p className="text-xs text-muted-foreground/70 italic mt-1 truncate">"{workout.notes}"</p>
                         )}
                       </div>
-                    </div>
-                    <div className="flex flex-col items-end justify-between h-full">
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 -mt-2 -mr-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                      <div className="text-right shrink-0">
+                        <div className={`font-bold text-base ${meta.color}`}>{workout.caloriesBurned}</div>
+                        <div className="text-[10px] text-muted-foreground uppercase tracking-wider">kcal</div>
+                      </div>
+                      <button
+                        className="absolute right-3 top-3 h-7 w-7 flex items-center justify-center rounded-lg text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-all"
                         onClick={() => handleDelete(workout.id)}
                       >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                      <div className="text-right mt-2">
-                        <div className="font-bold text-xl text-green-500">{workout.caloriesBurned}</div>
-                        <div className="text-xs text-muted-foreground font-medium uppercase tracking-wider">kcal</div>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </motion.div>
+                  </StaggerItem>
+                );
+              })}
+            </StaggerList>
+          )}
+        </div>
+      </PageTransition>
     </AppLayout>
   );
 }
