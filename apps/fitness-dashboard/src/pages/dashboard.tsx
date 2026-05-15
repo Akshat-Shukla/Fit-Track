@@ -47,8 +47,9 @@ function MacroBar({ label, value, target, color }: { label: string; value: numbe
       </div>
       <div className="h-1.5 rounded-full bg-muted/20 overflow-hidden">
         <motion.div
+          key={pct}
           className={`h-full rounded-full ${color.replace("text-", "bg-")}`}
-          initial={{ width: 0 }}
+          initial={{ width: "0%" }}
           animate={{ width: `${pct}%` }}
           transition={{ duration: 0.7, ease: "easeOut", delay: 0.1 }}
         />

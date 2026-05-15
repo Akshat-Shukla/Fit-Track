@@ -44,8 +44,9 @@ function MacroChip({ label, value, target, color }: { label: string; value: numb
       </div>
       <div className="h-1.5 rounded-full bg-muted/30 overflow-hidden">
         <motion.div
+          key={pct}
           className={`h-full rounded-full ${color.replace("text-", "bg-")}`}
-          initial={{ width: 0 }}
+          initial={{ width: "0%" }}
           animate={{ width: `${pct}%` }}
           transition={{ duration: 0.6, ease: "easeOut" }}
         />
