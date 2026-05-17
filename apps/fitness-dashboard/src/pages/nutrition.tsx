@@ -34,19 +34,16 @@ const PROTEIN_TARGET = 150;
 const CARBS_TARGET = 250;
 const FAT_TARGET = 65;
 
-function MacroChip({ label, value, target, color }: { label: string; value: number; target: number; color: string }) {
+function MacroChip({ label, value, target, textColor, bgColor }: { label: string; value: number; target: number; textColor: string; bgColor: string }) {
   const pct = Math.min(100, (value / target) * 100);
   return (
     <div className="flex-1 bg-card/30 border border-border/30 rounded-xl p-3">
       <div className="flex justify-between items-baseline mb-2">
         <span className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">{label}</span>
-        <span className={`text-xs font-bold ${color}`}>{Math.round(value)}g</span>
+        <span className={`text-xs font-bold ${textColor}`}>{Math.round(value)}g</span>
       </div>
       <div className="h-1.5 rounded-full bg-muted/30 overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all duration-700 ease-out ${color.replace("text-", "bg-")}`}
-          style={{ width: `${pct}%` }}
-        />
+        <div className={`h-full rounded-full transition-all duration-700 ease-out ${bgColor}`} style={{ width: `${pct}%` }} />
       </div>
       <div className="text-[10px] text-muted-foreground mt-1.5">{target}g target</div>
     </div>
@@ -227,9 +224,9 @@ export function NutritionPage() {
               </div>
             </div>
             <div className="flex gap-2.5">
-              <MacroChip label="Protein" value={totals.protein} target={PROTEIN_TARGET} color="text-blue-400" />
-              <MacroChip label="Carbs" value={totals.carbs} target={CARBS_TARGET} color="text-amber-400" />
-              <MacroChip label="Fat" value={totals.fat} target={FAT_TARGET} color="text-rose-400" />
+              <MacroChip label="Protein" value={totals.protein} target={PROTEIN_TARGET} textColor="text-blue-400" bgColor="bg-blue-400" />
+              <MacroChip label="Carbs" value={totals.carbs} target={CARBS_TARGET} textColor="text-amber-400" bgColor="bg-amber-400" />
+              <MacroChip label="Fat" value={totals.fat} target={FAT_TARGET} textColor="text-rose-400" bgColor="bg-rose-400" />
             </div>
           </div>
 

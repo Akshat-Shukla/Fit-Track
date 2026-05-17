@@ -33,17 +33,16 @@ function StatCard({ label, value, sub, icon: Icon, color, loading }: {
   );
 }
 
-function MacroBar({ label, value, target, color }: { label: string; value: number; target: number; color: string }) {
+function MacroBar({ label, value, target, textColor, bgColor }: { label: string; value: number; target: number; textColor: string; bgColor: string }) {
   const pct = Math.min(100, Math.round((value / target) * 100));
-  const bg = color.replace("text-", "bg-");
   return (
     <div className="space-y-1.5">
       <div className="flex justify-between text-xs">
         <span className="text-muted-foreground">{label}</span>
-        <span className="font-semibold"><span className={color}>{Math.round(value)}g</span><span className="text-muted-foreground">/{target}g</span></span>
+        <span className="font-semibold"><span className={textColor}>{Math.round(value)}g</span><span className="text-muted-foreground">/{target}g</span></span>
       </div>
       <div className="h-1.5 rounded-full bg-muted/20 overflow-hidden">
-        <div className={`h-full rounded-full transition-all duration-700 ease-out ${bg}`} style={{ width: `${pct}%` }} />
+        <div className={`h-full rounded-full transition-all duration-700 ease-out ${bgColor}`} style={{ width: `${pct}%` }} />
       </div>
     </div>
   );
@@ -189,9 +188,9 @@ export function DashboardPage() {
                         </div>
                       </div>
                       <div className="space-y-2.5 pt-2 border-t border-border/20">
-                        <MacroBar label="Protein" value={stats?.totalProteinToday ?? 0} target={PROTEIN_TARGET} color="text-blue-400" />
-                        <MacroBar label="Carbs" value={stats?.totalCarbsToday ?? 0} target={CARBS_TARGET} color="text-amber-400" />
-                        <MacroBar label="Fat" value={stats?.totalFatToday ?? 0} target={FAT_TARGET} color="text-rose-400" />
+                        <MacroBar label="Protein" value={stats?.totalProteinToday ?? 0} target={PROTEIN_TARGET} textColor="text-blue-400" bgColor="bg-blue-400" />
+                        <MacroBar label="Carbs" value={stats?.totalCarbsToday ?? 0} target={CARBS_TARGET} textColor="text-amber-400" bgColor="bg-amber-400" />
+                        <MacroBar label="Fat" value={stats?.totalFatToday ?? 0} target={FAT_TARGET} textColor="text-rose-400" bgColor="bg-rose-400" />
                       </div>
                     </div>
                   )}

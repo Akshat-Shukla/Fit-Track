@@ -1,11 +1,11 @@
-import { useEffect } from "react";
 import { useUser } from "@clerk/react";
-import { useGetProfile, useUpdateProfile, getGetProfileQueryKey } from "@fitness/api-client-react";
+import { useGetProfile, useUpdateProfile, useLogWeight, getGetProfileQueryKey, getGetWeightHistoryQueryKey, getGetDashboardStatsQueryKey } from "@fitness/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { User, Save, Scale, Ruler, Calendar, Target, BadgeCheck } from "lucide-react";
+import { format } from "date-fns";
 
 import { AppLayout } from "@/components/layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,35 +42,36 @@ function getBmiInfo(bmi: number) {
   return { label: "Obese", color: "text-rose-400", bg: "bg-rose-400/10" };
 }
 
-export function SettingsPage() {
-  const { user } = useUser();
-  const { data: profile, isLoading } = useGetProfile();
+type Profile = { name: string; age: number; weightKg: number; heightCm: number; fitnessGoal: string };
+
+function FitnessProfileForm({ profile }: { profile: Profile }) {
   const updateProfile = useUpdateProfile();
+  const logWeight = useLogWeight();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   const form = useForm<SettingsValues>({
     resolver: zodResolver(settingsSchema),
-    defaultValues: { name: "", age: 25, weightKg: 70, heightCm: 170, fitnessGoal: "stay_active" },
+    defaultValues: {
+      name: profile.name,
+      age: profile.age,
+      weightKg: profile.weightKg,
+      heightCm: profile.heightCm,
+      fitnessGoal: profile.fitnessGoal as SettingsValues["fitnessGoal"],
+    },
   });
 
-  useEffect(() => {
-    if (profile) {
-      form.reset({
-        name: profile.name,
-        age: profile.age,
-        weightKg: profile.weightKg,
-        heightCm: profile.heightCm,
-        fitnessGoal: profile.fitnessGoal as SettingsValues["fitnessGoal"],
-      });
-    }
-  }, [profile, form]);
-
   const onSubmit = (data: SettingsValues) => {
+    const weightChanged = data.weightKg !== profile.weightKg;
     updateProfile.mutate(
       { data },
       {
         onSuccess: () => {
+          if (weightChanged) {
+            logWeight.mutate({ data: { weightKg: data.weightKg, date: format(new Date(), "yyyy-MM-dd") } });
+            queryClient.invalidateQueries({ queryKey: getGetWeightHistoryQueryKey() });
+            queryClient.invalidateQueries({ queryKey: getGetDashboardStatsQueryKey() });
+          }
           queryClient.invalidateQueries({ queryKey: getGetProfileQueryKey() });
           toast({ title: "Profile updated!" });
         },
@@ -80,6 +81,91 @@ export function SettingsPage() {
       }
     );
   };
+
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+        <FormField control={form.control} name="name" render={({ field }) => (
+          <FormItem>
+            <FormLabel className="flex items-center gap-1.5 text-xs text-muted-foreground uppercase tracking-wider">
+              <User className="h-3 w-3" /> Display Name
+            </FormLabel>
+            <FormControl>
+              <Input placeholder="Your name" className="bg-background/50 border-border/40" {...field} />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )} />
+
+        <div className="grid grid-cols-3 gap-3">
+          <FormField control={form.control} name="age" render={({ field }) => (
+            <FormItem>
+              <FormLabel className="flex items-center gap-1 text-xs text-muted-foreground uppercase tracking-wider">
+                <Calendar className="h-3 w-3" /> Age
+              </FormLabel>
+              <FormControl><Input type="number" className="bg-background/50 border-border/40" {...field} /></FormControl>
+              <FormMessage />
+            </FormItem>
+          )} />
+          <FormField control={form.control} name="weightKg" render={({ field }) => (
+            <FormItem>
+              <FormLabel className="flex items-center gap-1 text-xs text-muted-foreground uppercase tracking-wider">
+                <Scale className="h-3 w-3" /> Weight
+              </FormLabel>
+              <FormControl><Input type="number" step="0.1" className="bg-background/50 border-border/40" {...field} /></FormControl>
+              <FormDescription className="text-[10px]">kg</FormDescription>
+              <FormMessage />
+            </FormItem>
+          )} />
+          <FormField control={form.control} name="heightCm" render={({ field }) => (
+            <FormItem>
+              <FormLabel className="flex items-center gap-1 text-xs text-muted-foreground uppercase tracking-wider">
+                <Ruler className="h-3 w-3" /> Height
+              </FormLabel>
+              <FormControl><Input type="number" step="0.5" className="bg-background/50 border-border/40" {...field} /></FormControl>
+              <FormDescription className="text-[10px]">cm</FormDescription>
+              <FormMessage />
+            </FormItem>
+          )} />
+        </div>
+
+        <FormField control={form.control} name="fitnessGoal" render={({ field }) => (
+          <FormItem>
+            <FormLabel className="flex items-center gap-1.5 text-xs text-muted-foreground uppercase tracking-wider">
+              <Target className="h-3 w-3" /> Primary Goal
+            </FormLabel>
+            <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <FormControl>
+                <SelectTrigger className="bg-background/50 border-border/40">
+                  <SelectValue placeholder="Select your goal" />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent className="bg-card border-border/40">
+                {goalOptions.map(o => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FormMessage />
+          </FormItem>
+        )} />
+
+        <Button
+          type="submit"
+          className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+          disabled={updateProfile.isPending}
+        >
+          <Save className="mr-2 h-4 w-4" />
+          {updateProfile.isPending ? "Saving..." : "Save Changes"}
+        </Button>
+      </form>
+    </Form>
+  );
+}
+
+export function SettingsPage() {
+  const { user } = useUser();
+  const { data: profile, isLoading } = useGetProfile();
 
   const bmi = profile ? +(profile.weightKg / Math.pow(profile.heightCm / 100, 2)).toFixed(1) : null;
   const bmiInfo = bmi ? getBmiInfo(bmi) : null;
@@ -93,7 +179,6 @@ export function SettingsPage() {
             <p className="text-sm text-muted-foreground mt-0.5">Manage your profile and fitness details.</p>
           </div>
 
-          {/* Account card */}
           <Card className="bg-card/20 border-border/30">
             <CardHeader className="pb-4">
               <CardTitle className="text-sm font-bold flex items-center gap-2">
@@ -123,7 +208,6 @@ export function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* BMI card */}
           {bmi && bmiInfo && (
             <div className="bg-card/20 border border-border/30 rounded-xl px-5 py-4 flex items-center justify-between">
               <div>
@@ -142,7 +226,6 @@ export function SettingsPage() {
             </div>
           )}
 
-          {/* Fitness profile */}
           <Card className="bg-card/20 border-border/30">
             <CardHeader className="pb-4">
               <CardTitle className="text-sm font-bold flex items-center gap-2">
@@ -151,88 +234,12 @@ export function SettingsPage() {
               <CardDescription className="text-xs">Update your physical stats and goal</CardDescription>
             </CardHeader>
             <CardContent>
-              {isLoading ? (
+              {isLoading || !profile ? (
                 <div className="space-y-4">
                   {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-10 w-full" />)}
                 </div>
               ) : (
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-                    <FormField control={form.control} name="name" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="flex items-center gap-1.5 text-xs text-muted-foreground uppercase tracking-wider">
-                          <User className="h-3 w-3" /> Display Name
-                        </FormLabel>
-                        <FormControl>
-                          <Input placeholder="Your name" className="bg-background/50 border-border/40" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
-
-                    <div className="grid grid-cols-3 gap-3">
-                      <FormField control={form.control} name="age" render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="flex items-center gap-1 text-xs text-muted-foreground uppercase tracking-wider">
-                            <Calendar className="h-3 w-3" /> Age
-                          </FormLabel>
-                          <FormControl><Input type="number" className="bg-background/50 border-border/40" {...field} /></FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                      <FormField control={form.control} name="weightKg" render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="flex items-center gap-1 text-xs text-muted-foreground uppercase tracking-wider">
-                            <Scale className="h-3 w-3" /> Weight
-                          </FormLabel>
-                          <FormControl><Input type="number" step="0.1" className="bg-background/50 border-border/40" {...field} /></FormControl>
-                          <FormDescription className="text-[10px]">kg</FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                      <FormField control={form.control} name="heightCm" render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="flex items-center gap-1 text-xs text-muted-foreground uppercase tracking-wider">
-                            <Ruler className="h-3 w-3" /> Height
-                          </FormLabel>
-                          <FormControl><Input type="number" step="0.5" className="bg-background/50 border-border/40" {...field} /></FormControl>
-                          <FormDescription className="text-[10px]">cm</FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                    </div>
-
-                    <FormField control={form.control} name="fitnessGoal" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="flex items-center gap-1.5 text-xs text-muted-foreground uppercase tracking-wider">
-                          <Target className="h-3 w-3" /> Primary Goal
-                        </FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger className="bg-background/50 border-border/40">
-                              <SelectValue placeholder="Select your goal" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent className="bg-card border-border/40">
-                            {goalOptions.map(o => (
-                              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
-
-                    <Button
-                      type="submit"
-                      className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-                      disabled={updateProfile.isPending}
-                    >
-                      <Save className="mr-2 h-4 w-4" />
-                      {updateProfile.isPending ? "Saving..." : "Save Changes"}
-                    </Button>
-                  </form>
-                </Form>
+                <FitnessProfileForm key={profile.name + profile.fitnessGoal} profile={profile} />
               )}
             </CardContent>
           </Card>

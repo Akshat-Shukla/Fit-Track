@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useGetWeeklyStats, useGetWeightHistory, useLogWeight, getGetWeightHistoryQueryKey, getGetDashboardStatsQueryKey } from "@fitness/api-client-react";
+import { useGetWeeklyStats, useGetWeightHistory, useLogWeight, useUpdateProfile, getGetWeightHistoryQueryKey, getGetDashboardStatsQueryKey, getGetProfileQueryKey } from "@fitness/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { format, parseISO } from "date-fns";
@@ -47,6 +47,7 @@ export function ProgressPage() {
   const { data: weeklyStats, isLoading: weeklyLoading } = useGetWeeklyStats();
   const { data: weightHistory, isLoading: weightLoading } = useGetWeightHistory();
   const logWeight = useLogWeight();
+  const updateProfile = useUpdateProfile();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -61,8 +62,10 @@ export function ProgressPage() {
       { data },
       {
         onSuccess: () => {
+          updateProfile.mutate({ data: { weightKg: data.weightKg } });
           queryClient.invalidateQueries({ queryKey: getGetWeightHistoryQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetDashboardStatsQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetProfileQueryKey() });
           toast({ title: "Weight logged!" });
           setIsDialogOpen(false);
           form.reset({ weightKg: 75, date: format(new Date(), "yyyy-MM-dd") });
