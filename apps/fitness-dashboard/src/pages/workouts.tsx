@@ -2,11 +2,13 @@ import { useState } from "react";
 import { useListWorkouts, useLogWorkout, useDeleteWorkout, getListWorkoutsQueryKey, getGetDashboardStatsQueryKey } from "@fitness/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Activity, Calendar, Clock, Plus, Trash2, Flame, Droplet, Dumbbell, Zap, Timer, TrendingUp } from "lucide-react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -42,6 +44,22 @@ const WORKOUT_TYPES = [
 function getWorkoutMeta(type: string) {
   return WORKOUT_TYPES.find(w => w.value === type) ?? WORKOUT_TYPES[7];
 }
+
+const CaloriesTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-card border border-border/50 px-4 py-3 rounded-xl shadow-2xl">
+      <p className="text-xs font-semibold text-muted-foreground mb-1.5">
+        {(() => { try { return format(parseISO(label), "MMM d"); } catch { return label; } })()}
+      </p>
+      <div className="flex items-center gap-2">
+        <div className="w-2 h-2 rounded-full bg-primary" />
+        <span className="text-xs text-muted-foreground">Calories:</span>
+        <span className="text-xs font-bold">{payload[0].value} kcal</span>
+      </div>
+    </div>
+  );
+};
 
 export function WorkoutsPage() {
   const { data: workouts, isLoading } = useListWorkouts({ limit: 50 });
@@ -97,6 +115,17 @@ export function WorkoutsPage() {
 
   const totalCalories = workouts?.reduce((s, w) => s + w.caloriesBurned, 0) ?? 0;
   const totalMinutes = workouts?.reduce((s, w) => s + w.durationMinutes, 0) ?? 0;
+
+  const caloriesChartData = workouts
+    ? Object.entries(
+        workouts.reduce<Record<string, number>>((acc, w) => {
+          acc[w.date] = (acc[w.date] ?? 0) + w.caloriesBurned;
+          return acc;
+        }, {})
+      )
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, calories]) => ({ date, calories }))
+    : [];
 
   return (
     <AppLayout>
@@ -183,21 +212,57 @@ export function WorkoutsPage() {
           </div>
 
           {!isLoading && workouts && workouts.length > 0 && (
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { label: "Total Sessions", value: workouts.length, icon: Activity, color: "text-primary" },
-                { label: "Total Minutes", value: totalMinutes, icon: Timer, color: "text-blue-400" },
-                { label: "Calories Burned", value: totalCalories.toLocaleString(), icon: Flame, color: "text-rose-400" },
-              ].map(stat => (
-                <div key={stat.label} className="bg-card/30 border border-border/30 rounded-xl px-4 py-3 flex items-center gap-3">
-                  <stat.icon className={`h-5 w-5 ${stat.color} shrink-0`} />
-                  <div>
-                    <div className="font-bold text-lg leading-none">{stat.value}</div>
-                    <div className="text-[11px] text-muted-foreground mt-0.5">{stat.label}</div>
+            <>
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { label: "Total Sessions", value: workouts.length, icon: Activity, color: "text-primary" },
+                  { label: "Total Minutes", value: totalMinutes, icon: Timer, color: "text-blue-400" },
+                  { label: "Calories Burned", value: totalCalories.toLocaleString(), icon: Flame, color: "text-rose-400" },
+                ].map(stat => (
+                  <div key={stat.label} className="bg-card/30 border border-border/30 rounded-xl px-4 py-3 flex items-center gap-3">
+                    <stat.icon className={`h-5 w-5 ${stat.color} shrink-0`} />
+                    <div>
+                      <div className="font-bold text-lg leading-none">{stat.value}</div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5">{stat.label}</div>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+
+              <Card className="bg-card/20 border-border/30">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-bold">Calories Burned Over Time</CardTitle>
+                  <CardDescription className="text-xs">Total calories burned per training day</CardDescription>
+                </CardHeader>
+                <CardContent className="h-56 pt-2">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={caloriesChartData} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="caloriesGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.25} />
+                          <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.5} />
+                      <XAxis
+                        dataKey="date"
+                        tickFormatter={d => { try { return format(parseISO(d), "MMM d"); } catch { return d; } }}
+                        stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} axisLine={false} dy={8}
+                      />
+                      <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} axisLine={false} />
+                      <Tooltip content={<CaloriesTooltip />} />
+                      <Area
+                        type="monotone" dataKey="calories" name="Calories"
+                        stroke="hsl(var(--primary))" strokeWidth={2.5}
+                        fill="url(#caloriesGrad)"
+                        dot={{ r: 3.5, fill: "hsl(var(--primary))", strokeWidth: 0 }}
+                        activeDot={{ r: 5, fill: "hsl(var(--background))", stroke: "hsl(var(--primary))", strokeWidth: 2 }}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </>
           )}
 
           {isLoading ? (
