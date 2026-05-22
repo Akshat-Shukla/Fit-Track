@@ -449,7 +449,7 @@ components:
 
     DailyStats:
       type: object
-      required: [date, caloriesBurned, caloriesConsumed, workoutMinutes]
+      required: [date, caloriesBurned, caloriesConsumed, workoutMinutes, protein, carbs, fat]
       properties:
         date:
           type: string
@@ -459,6 +459,12 @@ components:
           type: integer
         workoutMinutes:
           type: integer
+        protein:
+          type: number
+        carbs:
+          type: number
+        fat:
+          type: number
 
     WeightEntry:
       type: object

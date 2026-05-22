@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { useListNutrition, useLogNutrition, useDeleteNutrition, getListNutritionQueryKey, getGetDashboardStatsQueryKey } from "@fitness/api-client-react";
+import { useListNutrition, useLogNutrition, useDeleteNutrition, getListNutritionQueryKey, getGetDashboardStatsQueryKey, useGetWeeklyStats } from "@fitness/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { Utensils, Plus, Trash2, ChevronLeft, ChevronRight as ChevronRightIcon } from "lucide-react";
-import { format, addDays, subDays, isToday } from "date-fns";
+import { format, addDays, subDays, isToday, parseISO } from "date-fns";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -34,6 +35,28 @@ const PROTEIN_TARGET = 150;
 const CARBS_TARGET = 250;
 const FAT_TARGET = 65;
 
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-card border border-border/50 px-4 py-3 rounded-xl shadow-2xl">
+      <p className="text-xs font-semibold text-muted-foreground mb-2">
+        {(() => { try { return format(parseISO(label), "MMM d"); } catch { return label; } })()}
+      </p>
+      {payload.map((entry: any, i: number) => (
+        <div key={i} className="flex items-center justify-between gap-4 text-sm mb-1 last:mb-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
+            <span className="text-muted-foreground text-xs">{entry.name}:</span>
+          </div>
+          <span className="font-bold text-xs">{entry.value}g</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const formatDate = (d: string) => { try { return format(parseISO(d), "MMM d"); } catch { return d; } };
+
 function MacroChip({ label, value, target, textColor, bgColor }: { label: string; value: number; target: number; textColor: string; bgColor: string }) {
   const pct = Math.min(100, (value / target) * 100);
   return (
@@ -55,6 +78,7 @@ export function NutritionPage() {
   const [selectedDate, setSelectedDate] = useState(today);
 
   const { data: entries, isLoading } = useListNutrition({ date: selectedDate });
+  const { data: weeklyStats, isLoading: weeklyLoading } = useGetWeeklyStats();
   const logNutrition = useLogNutrition();
   const deleteNutrition = useDeleteNutrition();
   const queryClient = useQueryClient();
@@ -229,6 +253,33 @@ export function NutritionPage() {
               <MacroChip label="Fat" value={totals.fat} target={FAT_TARGET} textColor="text-rose-400" bgColor="bg-rose-400" />
             </div>
           </div>
+
+          <Card className="bg-card/20 border-border/30">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-bold">Macro Trends</CardTitle>
+              <CardDescription className="text-xs">Protein, carbs, and fat over the last 7 days</CardDescription>
+            </CardHeader>
+            <CardContent className="h-64 pt-2">
+              {weeklyLoading ? (
+                <Skeleton className="w-full h-full rounded-xl" />
+              ) : !weeklyStats || weeklyStats.length === 0 ? (
+                <div className="h-full flex items-center justify-center text-sm text-muted-foreground">No data yet</div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={weeklyStats} margin={{ top: 4, right: 4, left: -24, bottom: 0 }} barGap={2}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.5} />
+                    <XAxis dataKey="date" tickFormatter={formatDate} stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} axisLine={false} dy={8} />
+                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} axisLine={false} />
+                    <Tooltip content={<CustomTooltip />} cursor={{ fill: "hsl(var(--muted)/0.08)" }} />
+                    <Legend iconType="circle" iconSize={7} wrapperStyle={{ fontSize: "11px", paddingTop: 8 }} />
+                    <Bar dataKey="protein" name="Protein" fill="#60a5fa" radius={[3, 3, 0, 0]} maxBarSize={20} />
+                    <Bar dataKey="carbs" name="Carbs" fill="#fbbf24" radius={[3, 3, 0, 0]} maxBarSize={20} />
+                    <Bar dataKey="fat" name="Fat" fill="#fb7185" radius={[3, 3, 0, 0]} maxBarSize={20} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
 
           <div>
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Food Log</h2>

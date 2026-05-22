@@ -148,6 +148,9 @@ router.get("/stats/weekly", requireAuth, async (req: any, res) => {
         caloriesBurned: dayWorkouts.reduce((s, w) => s + w.caloriesBurned, 0),
         caloriesConsumed: dayNutrition.reduce((s, n) => s + n.calories, 0),
         workoutMinutes: dayWorkouts.reduce((s, w) => s + w.durationMinutes, 0),
+        protein: dayNutrition.reduce((s, n) => s + (n.protein ?? 0), 0),
+        carbs: dayNutrition.reduce((s, n) => s + (n.carbs ?? 0), 0),
+        fat: dayNutrition.reduce((s, n) => s + (n.fat ?? 0), 0),
       };
     });
 
