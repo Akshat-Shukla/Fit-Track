@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useListNutrition, useLogNutrition, useDeleteNutrition, getListNutritionQueryKey, getGetDashboardStatsQueryKey, useGetWeeklyStats } from "@fitness/api-client-react";
+import { useState, useEffect } from "react";
+import { useListNutrition, useLogNutrition, useDeleteNutrition, getListNutritionQueryKey, getGetDashboardStatsQueryKey, useGetWeeklyStats, getGetWeeklyStatsQueryKey } from "@fitness/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { Utensils, Plus, Trash2, ChevronLeft, ChevronRight as ChevronRightIcon } from "lucide-react";
@@ -90,16 +90,23 @@ export function NutritionPage() {
     defaultValues: { foodName: "", calories: 0, protein: 0, carbs: 0, fat: 0, date: today },
   });
 
+  useEffect(() => {
+    if (isDialogOpen) {
+      form.reset({ foodName: "", calories: 0, protein: 0, carbs: 0, fat: 0, date: selectedDate });
+    }
+  }, [isDialogOpen, selectedDate, form]);
+
   const onSubmit = (data: NutritionValues) => {
     logNutrition.mutate(
-      { data: { ...data, date: selectedDate } },
+      { data: { ...data, date: data.date } },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getListNutritionQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetDashboardStatsQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetWeeklyStatsQueryKey() });
+          setSelectedDate(data.date);
           toast({ title: "Meal logged!" });
           setIsDialogOpen(false);
-          form.reset({ foodName: "", calories: 0, protein: 0, carbs: 0, fat: 0, date: today });
         },
         onError: () => {
           toast({ variant: "destructive", title: "Failed to log meal" });
@@ -116,6 +123,7 @@ export function NutritionPage() {
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: getListNutritionQueryKey() });
             queryClient.invalidateQueries({ queryKey: getGetDashboardStatsQueryKey() });
+            queryClient.invalidateQueries({ queryKey: getGetWeeklyStatsQueryKey() });
             toast({ title: "Entry deleted" });
           },
         }
@@ -178,6 +186,13 @@ export function NutritionPage() {
                         )} />
                       ))}
                     </div>
+                    <FormField control={form.control} name="date" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Date</FormLabel>
+                        <FormControl><Input type="date" className="bg-background/60 border-border/40" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
                     <Button type="submit" className="w-full bg-primary text-primary-foreground hover:bg-primary/90" disabled={logNutrition.isPending}>
                       {logNutrition.isPending ? "Saving..." : "Save Entry"}
                     </Button>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useListWorkouts, useLogWorkout, useDeleteWorkout, getListWorkoutsQueryKey, getGetDashboardStatsQueryKey } from "@fitness/api-client-react";
+import { useListWorkouts, useLogWorkout, useDeleteWorkout, getListWorkoutsQueryKey, getGetDashboardStatsQueryKey, getGetWeeklyStatsQueryKey } from "@fitness/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Activity, Calendar, Clock, Plus, Trash2, Flame, Droplet, Dumbbell, Zap, Timer, TrendingUp } from "lucide-react";
 import { format, parseISO } from "date-fns";
@@ -87,6 +87,7 @@ export function WorkoutsPage() {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getListWorkoutsQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetDashboardStatsQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetWeeklyStatsQueryKey() });
           toast({ title: "Workout logged!" });
           setIsDialogOpen(false);
           form.reset({ type: "running", durationMinutes: 30, caloriesBurned: 300, date: format(new Date(), "yyyy-MM-dd"), notes: "" });
@@ -106,6 +107,7 @@ export function WorkoutsPage() {
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: getListWorkoutsQueryKey() });
             queryClient.invalidateQueries({ queryKey: getGetDashboardStatsQueryKey() });
+            queryClient.invalidateQueries({ queryKey: getGetWeeklyStatsQueryKey() });
             toast({ title: "Workout deleted" });
           },
         }
