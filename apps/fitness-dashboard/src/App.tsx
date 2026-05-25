@@ -186,7 +186,7 @@ function ClerkProviderWithRoutes() {
         signUp: {
           start: {
             title: "Initialize Protocol",
-            subtitle: "Create your FitTrack identity",
+            subtitle: "Create your ApexTrak identity",
           },
         },
       }}
